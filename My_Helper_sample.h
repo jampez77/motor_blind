@@ -13,6 +13,7 @@ String mqttName = "studyBlind"; //change this name (MAX 10 CHARACTERS!!!)
  *  DO NOT CHANGE ANY VALUES BELOW THIS SECTION, UNLESS YOU KNOW WHAT YOU'RE DOING!
  *  
  *  Sorry, that's a bit dramatic, nothing bad will happen but things might not work.
+ *  
  *  If you would like a longer mqttName then you will need to increase the amount of
  *  allocated memory in the `DynamicJsonDocument` in `sendConfigDetailsToHA`
  *  
