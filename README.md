@@ -36,6 +36,12 @@ You do not need to make any changes to the `motor_blind` script itself!
 
 Click on the `My_Helper.h` tab, that is where you will add your WiFi credentials for your home network & your MQTT details.
 
+If you are using this project for multiple blinds then you will need to change the `mqttName` from 'studyBlind' to something else unique so that it's picked up as a separate device in HA.
+
+NOTE: Data sent to HA is given specific memory allocation and will be truncated if the `mqttName` is too long. Keep this name below 10 characters. If you would like a longer name then you will need to increase the allocated memory of the `DynamicJsonDocument`s in `sendConfigDetailsToHA`.
+
+You should use Home Assistant to change the entity names for new devices. This can be done by clicking on the entity in the MQTT integrations section and edit the Name / Icon / Entity ID.
+
 **Wiring**
 
 Wiring is very similar to the original version described [here](https://www.thingiverse.com/thing:2392856) with one key difference. We connect `IN4` to `D5` as I `D4` on the NodeMCU is the builtin LED, that is used to show any connection problem.

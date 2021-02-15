@@ -30,7 +30,7 @@ void setup() {
 
   if(!SPIFFS.begin()){
       Serial.println("An Error has occurred while mounting SPIFFS");
-      client.publish(coverDebugTopic, "Critical Error!", false);
+      client.publish(coverDebugTopic.c_str(), "Critical Error!", false);
       return;
   }
 
@@ -43,7 +43,7 @@ void setup() {
     maxPosition = jsonConfig["max"];
 
   } else {
-    client.publish(coverDebugTopic, "No config found, using default configuration", false);
+    client.publish(coverDebugTopic.c_str(), "No config found, using default configuration", false);
   }
   
   setup_wifi();
@@ -144,7 +144,7 @@ void loop() {
 void publishDebugJson(JsonObject json){
   char mqttJson[50];
   serializeJsonPretty(json, mqttJson);
-  client.publish(coverDebugTopic, mqttJson, false);
+  client.publish(coverDebugTopic.c_str(), mqttJson, false);
 }
 
 void stopAndPublishState(int finishedState){
@@ -154,7 +154,7 @@ void stopAndPublishState(int finishedState){
   if(finishedState == CLOSE){
     endState = closed;
   }
-  client.publish(coverStateTopic, endState, true);
+  client.publish(coverStateTopic.c_str(), endState, true);
 }
 
 void setup_wifi() {
@@ -191,16 +191,16 @@ boolean connectClient() {
     digitalWrite(ledPin, LOW);
     Serial.print("Attempting MQTT connection...");
     // Check connection
-    if (client.connect(mqttCoverDeviceClientId.c_str(), mqtt_user, mqtt_password, coverAvailabilityTopic, 0, true, payloadNotAvailable)) {
+    if (client.connect(mqttCoverDeviceClientId.c_str(), mqtt_user, mqtt_password, coverAvailabilityTopic.c_str(), 0, true, payloadNotAvailable)) {
       // Make an announcement when connected
       Serial.println("connected");
-      client.publish(coverAvailabilityTopic, payloadAvailable, true);
+      client.publish(coverAvailabilityTopic.c_str(), payloadAvailable, true);
 
-      client.subscribe(coverCommandTopic);
-      client.subscribe(coverAvailabilityTopic);
-      client.subscribe(resetCommandTopic);
-      client.subscribe(minCommandTopic);
-      client.subscribe(maxCommandTopic);
+      client.subscribe(coverCommandTopic.c_str());
+      client.subscribe(coverAvailabilityTopic.c_str());
+      client.subscribe(resetCommandTopic.c_str());
+      client.subscribe(minCommandTopic.c_str());
+      client.subscribe(maxCommandTopic.c_str());
 
       Serial.println("Subscribed to: ");
       Serial.println(coverCommandTopic);
@@ -251,7 +251,7 @@ void callback(char* topic, byte* message, unsigned int length) {
     } else if(motorDirection == STOP){
       endState = stopped;
     }
-    client.publish(coverStateTopic, endState, true);
+    client.publish(coverStateTopic.c_str(), endState, true);
   }
 
   if (String(topic) == resetCommandTopic) {
@@ -275,11 +275,11 @@ void callback(char* topic, byte* message, unsigned int length) {
       minJson["min"] = minPosition;
       minJson["max"] = maxPosition;
       minJson["current"] = currentPosition;
-      client.publish(coverDebugTopic, "Min Position Set", false);
+      client.publish(coverDebugTopic.c_str(), "Min Position Set", false);
       publishDebugJson(minJson);
       if(helper.saveconfig(minJson)){
-        client.publish(minConfigTopic, "", false);
-        client.publish(coverStateTopic, opened, true);
+        client.publish(minConfigTopic.c_str(), "", false);
+        client.publish(coverStateTopic.c_str(), opened, true);
       }
     }
   }
@@ -295,11 +295,11 @@ void callback(char* topic, byte* message, unsigned int length) {
       maxJson["min"] = minPosition;
       maxJson["max"] = maxPosition;
       maxJson["current"] = currentPosition;
-      client.publish(coverDebugTopic, "Max Position Set", false);
+      client.publish(coverDebugTopic.c_str(), "Max Position Set", false);
       publishDebugJson(maxJson);
       if(helper.saveconfig(maxJson)){
-        client.publish(maxConfigTopic, "", false);
-        client.publish(coverStateTopic, closed, true);
+        client.publish(maxConfigTopic.c_str(), "", false);
+        client.publish(coverStateTopic.c_str(), closed, true);
       }
     }
   }
@@ -341,7 +341,7 @@ void sendConfigDetailsToHA(){
 
     char coverJson[600];
     serializeJsonPretty(mqttCoverConfig, coverJson);
-    client.publish(coverConfigTopic, coverJson, true);
+    client.publish(coverConfigTopic.c_str(), coverJson, true);
     
     DynamicJsonDocument mqttResetConfig(505);
     mqttResetConfig["name"] = mqttResetDeviceName;
@@ -354,7 +354,7 @@ void sendConfigDetailsToHA(){
 
     char resetJson[505];
     serializeJsonPretty(mqttResetConfig, resetJson);
-    client.publish(resetConfigTopic, resetJson, true);
+    client.publish(resetConfigTopic.c_str(), resetJson, true);
 
     if(minPosition == -1){
       DynamicJsonDocument mqttMinConfig(515);
@@ -368,9 +368,9 @@ void sendConfigDetailsToHA(){
   
       char minJson[515];
       serializeJsonPretty(mqttMinConfig, minJson);
-      client.publish(minConfigTopic, minJson, true);
+      client.publish(minConfigTopic.c_str(), minJson, true);
     } else {
-      client.publish(minConfigTopic, "", true);
+      client.publish(minConfigTopic.c_str(), "", true);
     }
     
 
@@ -386,9 +386,9 @@ void sendConfigDetailsToHA(){
   
       char maxJson[515];
       serializeJsonPretty(mqttMaxConfig, maxJson);
-      client.publish(maxConfigTopic, maxJson, true);
+      client.publish(maxConfigTopic.c_str(), maxJson, true);
     } else {
-      client.publish(maxConfigTopic, "", true);
+      client.publish(maxConfigTopic.c_str(), "", true);
     }
     configDetailsSent = true;
 }
