@@ -47,7 +47,7 @@ void setup() {
   }
   
   setup_wifi();
-  client.setServer(mqtt_server, 1883);
+  client.setServer(mqtt_server_ip, mqtt_server_port);
   client.setCallback(callback);
   client.setBufferSize(1024);
 
@@ -317,8 +317,8 @@ void sendConfigDetailsToHA(){
   //Send cover entity details to home assistant on initial connection
     //for auto discovery
 
-    DynamicJsonDocument mqttDevConfig(250);
-    mqttDevConfig["name"] = mqttCoverDeviceClientId;
+    DynamicJsonDocument mqttDevConfig(300);
+    mqttDevConfig["name"] = deviceName + " Blinds";
     mqttDevConfig["mf"] = manufacturer;
     mqttDevConfig["mdl"] = model;
     mqttDevConfig["sw"] = softwareVersion;
@@ -327,7 +327,7 @@ void sendConfigDetailsToHA(){
     mqttDevConfig["ids"][2] = mqttMinDeviceClientId;
     mqttDevConfig["ids"][3] = mqttMaxDeviceClientId;
     
-    DynamicJsonDocument mqttCoverConfig(600);
+    DynamicJsonDocument mqttCoverConfig(650);
     mqttCoverConfig["name"] = mqttCoverDeviceName;
     mqttCoverConfig["dev_cla"] = mqttCoverDeviceClass;
     mqttCoverConfig["stat_t"] = coverStateTopic;
@@ -339,11 +339,11 @@ void sendConfigDetailsToHA(){
     mqttCoverConfig["uniq_id"] = mqttCoverDeviceClientId;
     mqttCoverConfig["dev"] = mqttDevConfig;
 
-    char coverJson[600];
+    char coverJson[650];
     serializeJsonPretty(mqttCoverConfig, coverJson);
     client.publish(coverConfigTopic.c_str(), coverJson, true);
     
-    DynamicJsonDocument mqttResetConfig(505);
+    DynamicJsonDocument mqttResetConfig(555);
     mqttResetConfig["name"] = mqttResetDeviceName;
     mqttResetConfig["ic"] = "mdi:lock-reset";
     mqttResetConfig["cmd_t"] = resetCommandTopic;
@@ -352,12 +352,12 @@ void sendConfigDetailsToHA(){
     mqttResetConfig["uniq_id"] = mqttResetDeviceClientId;
     mqttResetConfig["dev"] = mqttDevConfig;
 
-    char resetJson[505];
+    char resetJson[555];
     serializeJsonPretty(mqttResetConfig, resetJson);
     client.publish(resetConfigTopic.c_str(), resetJson, true);
 
     if(minPosition == -1){
-      DynamicJsonDocument mqttMinConfig(515);
+      DynamicJsonDocument mqttMinConfig(565);
       mqttMinConfig["name"] = mqttMinDeviceName;
       mqttMinConfig["ic"] = "mdi:blinds-open";
       mqttMinConfig["cmd_t"] = minCommandTopic;
@@ -366,7 +366,7 @@ void sendConfigDetailsToHA(){
       mqttMinConfig["uniq_id"] = mqttMinDeviceClientId;
       mqttMinConfig["dev"] = mqttDevConfig;
   
-      char minJson[515];
+      char minJson[565];
       serializeJsonPretty(mqttMinConfig, minJson);
       client.publish(minConfigTopic.c_str(), minJson, true);
     } else {
@@ -375,7 +375,7 @@ void sendConfigDetailsToHA(){
     
 
     if(maxPosition == -1){
-      DynamicJsonDocument mqttMaxConfig(515);
+      DynamicJsonDocument mqttMaxConfig(565);
       mqttMaxConfig["name"] = mqttMaxDeviceName;
       mqttMaxConfig["ic"] = "mdi:blinds";
       mqttMaxConfig["cmd_t"] = maxCommandTopic;
@@ -384,7 +384,7 @@ void sendConfigDetailsToHA(){
       mqttMaxConfig["uniq_id"] = mqttMaxDeviceClientId;
       mqttMaxConfig["dev"] = mqttDevConfig;
   
-      char maxJson[515];
+      char maxJson[565];
       serializeJsonPretty(mqttMaxConfig, maxJson);
       client.publish(maxConfigTopic.c_str(), maxJson, true);
     } else {
