@@ -109,3 +109,14 @@ The setup is complete once the `Set Max` entity has disappeared. If you ever nee
 ArduinoOTA for wireless code updates.
 
 Added MQTT config on boot to integrate seamlessly with Home Assistant.
+
+### Version 1.1 - Initial Release ###
+
+#### Simplified process for having multiple project instances in HA ####
+Created `deviceName` variable so only a single change is required to create a new device in HA.
+
+Tweaked topics and devices names/IDs so each instance appears as separate device in HA.
+
+Increase JSON memory allocation by 50 characters to allow for larger device names.
+
+Updated variables for MQTT server to be more specific and allow port to be changed.
