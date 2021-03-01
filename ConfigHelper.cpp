@@ -44,6 +44,14 @@ JsonObject ConfigHelper::getconfig(){
     configJson["current"] = 0;
     configJson["min"] = -1;
     configJson["max"] = -1;
+    configJson["d_name"] = "";
+    configJson["ssid"] = "";
+    configJson["password"] = "";
+    configJson["mqtt_u"] = "";
+    configJson["mqtt_pw"] = "";
+    configJson["mqtt_ip"] = "";
+    configJson["mqtt_p"] = 1883;
+    
     return configJson;
   }
 
@@ -61,6 +69,13 @@ JsonObject ConfigHelper::getconfig(){
   configJson["current"] = doc["current"];
   configJson["min"] = doc["min"];
   configJson["max"] = doc["max"];
+  configJson["d_name"] = doc["d_name"];
+  configJson["ssid"] = doc["ssid"];
+  configJson["pw"] = doc["pw"];
+  configJson["mqtt_u"] = doc["mqtt_u"];
+  configJson["mqtt_pw"] = doc["mqtt_pw"];
+  configJson["mqtt_ip"] = doc["mqtt_ip"];
+  configJson["mqtt_p"] = doc["mqtt_ip"];
 
   // Close the file (Curiously, File's destructor doesn't close the file)
   configFile.close();
@@ -94,8 +109,15 @@ boolean ConfigHelper::saveconfig(JsonObject json){
 
   // Set the values in the document
   doc["current"] = json["current"];
-  doc["max"] = json["max"] ;
+  doc["max"] = json["max"];
   doc["min"] = json["min"];
+  doc["d_name"] = json["d_name"];
+  doc["ssid"] = json["ssid"];
+  doc["pw"] = json["pw"];
+  doc["mqtt_u"] = json["mqtt_u"];
+  doc["mqtt_pw"] = json["mqtt_pw"];
+  doc["mqtt_ip"] = json["mqtt_ip"];
+  doc["mqtt_p"] = json["mqtt_ip"];
   
   // Serialize JSON to file
   if (serializeJson(doc, configFile) == 0) {

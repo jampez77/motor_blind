@@ -1,5 +1,7 @@
 #include <Stepper_28BYJ_48.h>
 #include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <WiFiManager.h>  
 #include <PubSubClient.h>
 #include <ArduinoOTA.h>
 #include "My_Helper.h"
@@ -21,8 +23,11 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 Stepper_28BYJ_48 small_stepper(D1, D3, D2, D5); //Initiate stepper driver
 JsonObject jsonConfig;
+WiFiServer server(80);
+WiFiManager wifiManager;
 
 void setup() {
+  deviceId = String(ESP.getChipId()).c_str();
   // put your setup code here, to run once:
   Serial.begin(115200);
   pinMode(ledPin, OUTPUT);
@@ -41,24 +46,50 @@ void setup() {
     currentPosition = jsonConfig["current"];
     minPosition = jsonConfig["min"];
     maxPosition = jsonConfig["max"];
+    deviceName = jsonConfig["d_name"];
+    ssid = jsonConfig["ssid"];
+    password =jsonConfig["pw"];
+    mqtt_user =jsonConfig["mqtt_u"];
+    mqtt_password =jsonConfig["mqtt_pw"];
+    mqtt_server_ip =jsonConfig["mqtt_ip"];
+    mqtt_server_port =jsonConfig["mqtt_p"];
 
   } else {
     client.publish(coverDebugTopic.c_str(), "No config found, using default configuration", false);
   }
-  
-  setup_wifi();
-  client.setServer(mqtt_server_ip, mqtt_server_port);
-  client.setCallback(callback);
-  client.setBufferSize(1024);
 
-  while(!configDetailsSent){
-    if (connectClient()) {
-      sendConfigDetailsToHA();
+  
+  if(initialSetupMode){
+
+    Serial.println("Setup Required! Starting Access Point");
+
+    Serial.print("Creating access point: ");
+    Serial.println(deviceId);
+    String apName = "Blinds-"+ deviceId;
+    
+    wifiManager.autoConnect(apName.c_str(), appass);
+
+    Serial.println("Connected.");
+  
+    server.begin();
+    
+  } else {
+    setup_wifi();
+    client.setServer(mqtt_server_ip, mqtt_server_port);
+    client.setCallback(callback);
+    client.setBufferSize(1024);
+  
+    while(!configDetailsSent){
+      if (connectClient()) {
+        sendConfigDetailsToHA();
+      }
     }
   }
+  
+  
   //Setup OTA
   {
-    ArduinoOTA.setHostname((mqttCoverDeviceClientId + "-" + String(ESP.getChipId())).c_str());
+    ArduinoOTA.setHostname(deviceName);
 
     ArduinoOTA.onStart([]() {
       Serial.println("Start");
@@ -81,64 +112,128 @@ void setup() {
   }
 }
 
+void handleRoot() {
+  WiFiClient client = server.available(); 
+  if (client) {   
+    Serial.println("New Client."); 
+    String currentLine = ""; 
+        while (client.connected()) {
+          char c = client.read();             // read a byte, then
+            Serial.write(c);               // loop while the client's connected
+          if (client.available()) {             // if there's bytes to read from the client,
+                             // print it out the serial monitor
+            header += c;
+            if (c == '\n') {   
+               // if the current line is blank, you got two newline characters in a row.
+               // that's the end of the client HTTP request, so send a response:
+               // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
+              // and a content-type so the client knows what's coming, then a blank line:
+              client.println("HTTP/1.1 200 OK");
+              client.println("Content-type:text/html");
+              client.println("Connection: close");
+              client.println();
+
+              // Display the HTML web page
+              client.println("<!DOCTYPE html><html>");
+              client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+              client.println("<link rel=\"icon\" href=\"data:,\">");
+              // CSS to style the on/off buttons 
+              // Feel free to change the background-color and font-size attributes to fit your preferences
+              client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
+              client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 40px;");
+              client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
+              client.println(".button2 {background-color: #77878A;}</style></head>");
+              
+              // Web Page Heading
+              client.println("<body><h1>ESP8266 Web Server</h1>");
+
+              client.println("</body></html>");
+              // The HTTP response ends with another blank line
+              client.println();
+              // Break out of the while loop
+              break;
+            } else {
+              currentLine = "";
+            }
+          } else if (c != '\r') {  // if you got anything else but a carriage return character,
+            currentLine += c;      // add it to the end of the currentLine
+          }
+        }
+        // Clear the header variable
+        header = "";
+        // Close the connection
+        client.stop();
+        Serial.println("Client disconnected.");
+        Serial.println("");
+  }
+  
+}
+
+
 void loop() {
   //OTA client code
   ArduinoOTA.handle();
 
-  //attempt connection to WiFi if we don't have it
-  if(!espClient.connected()){
-    setup_wifi();
-  }
-
-  //while connected we send the current door status
-  //and trigger relay if we need to
-  if (client.connected()) {
-    client.loop();
-    digitalWrite(ledPin, HIGH);
-    //only activate motor if we 
-    if(motorDirection == OPEN || motorDirection == CLOSE){
-      int stepsBetweenMinMax = maxPosition - minPosition;
-
-      if (motorDirection == OPEN) {
-        if((minPosition != -1 && currentPosition == minPosition) ||
-            stepsBetweenMinMax == 0){
-          stopAndPublishState(motorDirection);
-        } else {
-          small_stepper.step(1);
-          currentPosition = currentPosition + 1;
+  if(initialSetupMode){
+    handleRoot();
+  } else {
+  
+      //attempt connection to WiFi if we don't have it
+      if(!espClient.connected()){
+        setup_wifi();
+      }
+    
+      //while connected we send the current door status
+      //and trigger relay if we need to
+      if (client.connected()) {
+        client.loop();
+        digitalWrite(ledPin, HIGH);
+        //only activate motor if we 
+        if(motorDirection == OPEN || motorDirection == CLOSE){
+          int stepsBetweenMinMax = maxPosition - minPosition;
+    
+          if (motorDirection == OPEN) {
+            if((minPosition != -1 && currentPosition == minPosition) ||
+                stepsBetweenMinMax == 0){
+              stopAndPublishState(motorDirection);
+            } else {
+              small_stepper.step(1);
+              currentPosition = currentPosition + 1;
+            }
+            
+          } else if (motorDirection == CLOSE) {
+            if((maxPosition != -1 && currentPosition == maxPosition) ||
+                stepsBetweenMinMax == 0){
+              stopAndPublishState(motorDirection);
+            } else {
+              small_stepper.step(-1);
+              currentPosition = currentPosition - 1;
+            }
+          }
+    
+          Serial.print("Current Position: ");
+          Serial.println(currentPosition);
+         
+          if(motorDirection == STOP){
+            stopPowerToCoils();
+            DynamicJsonDocument doc(50);
+            JsonObject currJson = doc.to<JsonObject>();
+            currJson["min"] = minPosition;
+            currJson["max"] = maxPosition;
+            currJson["current"] = currentPosition;
+            publishDebugJson(currJson);
+            if(helper.saveconfig(currJson)){
+              //client.publish(maxConfigTopic, "", false);
+            } 
+          }
+          
         }
         
-      } else if (motorDirection == CLOSE) {
-        if((maxPosition != -1 && currentPosition == maxPosition) ||
-            stepsBetweenMinMax == 0){
-          stopAndPublishState(motorDirection);
-        } else {
-          small_stepper.step(-1);
-          currentPosition = currentPosition - 1;
-        }
+      } else {
+        connectClient();
       }
-
-      Serial.print("Current Position: ");
-      Serial.println(currentPosition);
-     
-      if(motorDirection == STOP){
-        stopPowerToCoils();
-        DynamicJsonDocument doc(50);
-        JsonObject currJson = doc.to<JsonObject>();
-        currJson["min"] = minPosition;
-        currJson["max"] = maxPosition;
-        currJson["current"] = currentPosition;
-        publishDebugJson(currJson);
-        if(helper.saveconfig(currJson)){
-          //client.publish(maxConfigTopic, "", false);
-        } 
-      }
-      
-    }
-    
-  } else {
-    connectClient();
   }
+
 }
 
 void publishDebugJson(JsonObject json){
@@ -318,7 +413,7 @@ void sendConfigDetailsToHA(){
     //for auto discovery
 
     DynamicJsonDocument mqttDevConfig(300);
-    mqttDevConfig["name"] = deviceName + " Blinds";
+    mqttDevConfig["name"] = deviceName;
     mqttDevConfig["mf"] = manufacturer;
     mqttDevConfig["mdl"] = model;
     mqttDevConfig["sw"] = softwareVersion;
@@ -328,7 +423,7 @@ void sendConfigDetailsToHA(){
     mqttDevConfig["ids"][3] = mqttMaxDeviceClientId;
     
     DynamicJsonDocument mqttCoverConfig(650);
-    mqttCoverConfig["name"] = mqttCoverDeviceName;
+    mqttCoverConfig["name"] = deviceName;
     mqttCoverConfig["dev_cla"] = mqttCoverDeviceClass;
     mqttCoverConfig["stat_t"] = coverStateTopic;
     mqttCoverConfig["cmd_t"] = coverCommandTopic;
@@ -344,7 +439,7 @@ void sendConfigDetailsToHA(){
     client.publish(coverConfigTopic.c_str(), coverJson, true);
     
     DynamicJsonDocument mqttResetConfig(555);
-    mqttResetConfig["name"] = mqttResetDeviceName;
+    mqttResetConfig["name"] = "Reset";
     mqttResetConfig["ic"] = "mdi:lock-reset";
     mqttResetConfig["cmd_t"] = resetCommandTopic;
     mqttResetConfig["stat_t"] = resetStateTopic;
@@ -358,7 +453,7 @@ void sendConfigDetailsToHA(){
 
     if(minPosition == -1){
       DynamicJsonDocument mqttMinConfig(565);
-      mqttMinConfig["name"] = mqttMinDeviceName;
+      mqttMinConfig["name"] = "Set Min";
       mqttMinConfig["ic"] = "mdi:blinds-open";
       mqttMinConfig["cmd_t"] = minCommandTopic;
       mqttMinConfig["stat_t"] = minStateTopic;
@@ -376,7 +471,7 @@ void sendConfigDetailsToHA(){
 
     if(maxPosition == -1){
       DynamicJsonDocument mqttMaxConfig(565);
-      mqttMaxConfig["name"] = mqttMaxDeviceName;
+      mqttMaxConfig["name"] = "Set Max";
       mqttMaxConfig["ic"] = "mdi:blinds";
       mqttMaxConfig["cmd_t"] = maxCommandTopic;
       mqttMaxConfig["stat_t"] = maxStateTopic;
@@ -391,4 +486,28 @@ void sendConfigDetailsToHA(){
       client.publish(maxConfigTopic.c_str(), "", true);
     }
     configDetailsSent = true;
+}
+
+void printWiFiStatus() {
+
+  // print the SSID of the network you're attached to:
+
+  Serial.print("SSID: ");
+
+  Serial.println(WiFi.SSID());
+
+  // print your WiFi shield's IP address:
+
+  IPAddress ip = WiFi.localIP();
+
+  Serial.print("IP Address: ");
+
+  Serial.println(ip);
+
+  // print where to go in a browser:
+
+  Serial.print("To see this page in action, open a browser to http://");
+
+  Serial.println(ip);
+
 }
