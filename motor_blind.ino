@@ -7,31 +7,80 @@
 #include "My_Helper.h"
 #include "ConfigHelper.h"
 
-//ALL CONFIG CHANGES ARE LOCATED IN My_Helper.h//
-//ALL CONFIG CHANGES ARE LOCATED IN My_Helper.h//
-//ALL CONFIG CHANGES ARE LOCATED IN My_Helper.h//
-//ALL CONFIG CHANGES ARE LOCATED IN My_Helper.h//
-//ALL CONFIG CHANGES ARE LOCATED IN My_Helper.h//
-//ALL CONFIG CHANGES ARE LOCATED IN My_Helper.h//
-//ALL CONFIG CHANGES ARE LOCATED IN My_Helper.h//
-//ALL CONFIG CHANGES ARE LOCATED IN My_Helper.h//
-//ALL CONFIG CHANGES ARE LOCATED IN My_Helper.h//
-
 ConfigHelper helper = ConfigHelper();
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 Stepper_28BYJ_48 small_stepper(D1, D3, D2, D5); //Initiate stepper driver
-JsonObject jsonConfig;
+Config jsonConfig;
 WiFiServer server(80);
-WiFiManager wifiManager;
+
+boolean saveConfig() {
+  jsonConfig.currentPosition = currentPosition;
+  jsonConfig.maxPosition = maxPosition;
+  jsonConfig.minPosition = minPosition;
+  jsonConfig.initialSetup = initialSetup;
+
+  strlcpy(jsonConfig.deviceName,                
+          device_name,  
+          sizeof(jsonConfig.deviceName));    
+          
+  strlcpy(jsonConfig.mqttUser,                
+         mqtt_user,  
+          sizeof(jsonConfig.mqttUser));    
+  
+  strlcpy(jsonConfig.mqttPassword,                
+          mqtt_password,  
+          sizeof(jsonConfig.mqttPassword));    
+          
+  strlcpy(jsonConfig.mqttServerIp,                
+          mqtt_server_ip,  
+          sizeof(jsonConfig.mqttServerIp));    
+  
+  strlcpy(jsonConfig.mqttServerPort,                
+          mqtt_server_port,  
+          sizeof(jsonConfig.mqttServerPort));    
+
+  //publishDebugJson(json);
+
+  return helper.saveconfig(jsonConfig);
+}
+
+void saveConfigCallback () {
+  Serial.println("Setup Completed");
+  initialSetup = false;
+}
 
 void setup() {
-  deviceId = String(ESP.getChipId()).c_str();
+
   // put your setup code here, to run once:
   Serial.begin(115200);
   pinMode(ledPin, OUTPUT);
   stopPowerToCoils();
+
+  deviceId = String(ESP.getChipId()).c_str();
+
+  coverStateTopic = "homeassistant/cover/middleFloor/" + deviceId + "/state";
+  coverDebugTopic = "homeassistant/cover/middleFloor/" + deviceId + "/debug";
+  coverCommandTopic = "homeassistant/cover/middleFloor/" + deviceId + "/set";
+  coverConfigTopic = "homeassistant/cover/middleFloor/" + deviceId + "/config";
+  coverAvailabilityTopic = "homeassistant/cover/middleFloor/" + deviceId + "/availability";
+  mqttCoverDeviceClientId = deviceId + "Blind";
+
+  resetCommandTopic = "homeassistant/switch/middleFloor/" + deviceId + "/set";
+  resetStateTopic = "homeassistant/switch/middleFloor/" + deviceId + "/state";
+  resetConfigTopic = "homeassistant/switch/middleFloor/" + deviceId + "/config";
+  mqttResetDeviceClientId = deviceId + "RstBlinds";
+  
+  minCommandTopic = "homeassistant/switch/middleFloor/" + deviceId + "Min/set";
+  minStateTopic = "homeassistant/switch/middleFloor/" + deviceId + "Min/state";
+  minConfigTopic = "homeassistant/switch/middleFloor/" + deviceId + "Min/config";
+  mqttMinDeviceClientId = deviceId + "BlindsMin";
+
+  maxCommandTopic = "homeassistant/switch/middleFloor/" + deviceId + "Max/set";
+  maxStateTopic = "homeassistant/switch/middleFloor/" + deviceId + "Max/state";
+  maxConfigTopic = "homeassistant/switch/middleFloor/" + deviceId + "Max/config";
+  mqttMaxDeviceClientId = deviceId + "BlindsMax";
 
   if(!SPIFFS.begin()){
       Serial.println("An Error has occurred while mounting SPIFFS");
@@ -40,26 +89,50 @@ void setup() {
   }
 
   if(helper.loadconfig()){
-  
+    Serial.print("Config Details: ");
     jsonConfig = helper.getconfig();
 
-    currentPosition = jsonConfig["current"];
-    minPosition = jsonConfig["min"];
-    maxPosition = jsonConfig["max"];
-    deviceName = jsonConfig["d_name"];
-    ssid = jsonConfig["ssid"];
-    password =jsonConfig["pw"];
-    mqtt_user =jsonConfig["mqtt_u"];
-    mqtt_password =jsonConfig["mqtt_pw"];
-    mqtt_server_ip =jsonConfig["mqtt_ip"];
-    mqtt_server_port =jsonConfig["mqtt_p"];
+    Serial.print("currentPosition: ");
+    currentPosition = jsonConfig.currentPosition;
+    Serial.println(currentPosition);
+
+    Serial.print("minPosition: ");
+    minPosition = jsonConfig.minPosition;
+    Serial.println(minPosition);
+
+    Serial.print("maxPosition: ");
+    maxPosition = jsonConfig.maxPosition;
+    Serial.println(maxPosition);
+
+    Serial.print("Device Name: ");
+    strcpy(device_name, jsonConfig.deviceName);
+    Serial.println(device_name);
+
+    Serial.print("MQTT User: ");
+    strcpy(mqtt_user, jsonConfig.mqttUser);
+    Serial.println(mqtt_user);
+
+    Serial.print("MQTT Password: ");
+    strcpy(mqtt_password, jsonConfig.mqttPassword);
+    Serial.println(mqtt_password);
+
+    Serial.print("MQTT IP: ");
+    strcpy(mqtt_server_ip, jsonConfig.mqttServerIp);
+    Serial.println(mqtt_server_ip);
+
+    Serial.print("MQTT Port: ");
+    strcpy(mqtt_server_port, jsonConfig.mqttServerPort);
+    Serial.println(mqtt_server_port);
+
+    Serial.print("Initial Setup: ");
+    initialSetup = jsonConfig.initialSetup;
+    Serial.println(initialSetup);
 
   } else {
     client.publish(coverDebugTopic.c_str(), "No config found, using default configuration", false);
   }
 
-  
-  if(initialSetupMode){
+  if(initialSetup){
 
     Serial.println("Setup Required! Starting Access Point");
 
@@ -67,15 +140,73 @@ void setup() {
     Serial.println(deviceId);
     String apName = "Blinds-"+ deviceId;
     
+    WiFiManagerParameter custom_device_name("d_name", "Device Name", device_name, 25, " required onkeyup='this.value = this.value.replace(/(^\\w{1})|(\\s+\\w{1})/g, letter => letter.toUpperCase());'");
+    WiFiManagerParameter custom_text("<p><b>MQTT server parameters:</b></p>");
+    WiFiManagerParameter custom_mqtt_server("mqtt_ip", "MQTT Server IP", mqtt_server_ip, 15, " required");
+    WiFiManagerParameter custom_mqtt_port("mqtt_p", "MQTT Port", mqtt_server_port, 6, " required");
+    WiFiManagerParameter custom_mqtt_user("mqtt_u", "MQTT Username", mqtt_user, 40, " required");
+    WiFiManagerParameter custom_mqtt_password("mqtt_pw", "MQTT Password", mqtt_password, 40, " required type='password'");
+    //Setup WIFI Manager
+
+
+    WiFiManager wifiManager;
+    wifiManager.setClass("invert"); 
+    wifiManager.setSaveConfigCallback(saveConfigCallback);
+
+
+    wifiManager.addParameter(&custom_device_name);    
+    wifiManager.addParameter(&custom_text);
+    wifiManager.addParameter(&custom_mqtt_server);
+    wifiManager.addParameter(&custom_mqtt_port); 
+    wifiManager.addParameter(&custom_mqtt_user);    
+    wifiManager.addParameter(&custom_mqtt_password);    
+       
     wifiManager.autoConnect(apName.c_str(), appass);
+    
+    if(!initialSetup){
+        Serial.println("Setup Finished.");
+        //read updated parameters
+
+        char temp_dn[25];
+        strcpy(temp_dn, custom_device_name.getValue());
+        
+        memcpy(device_name, temp_dn, 25);
+
+        char temp_mp[25];
+        strcpy(temp_mp, custom_mqtt_port.getValue());
+
+        memcpy(mqtt_server_port, temp_mp, 25);
+
+        char temp_ms[25];
+        strcpy(temp_ms, custom_mqtt_server.getValue());
+        
+
+        memcpy(mqtt_server_ip, temp_ms, 25);
+
+        char temp_mpw[25];
+        strcpy(temp_mpw, custom_mqtt_password.getValue());
+        
+ 
+        memcpy(mqtt_password, temp_mpw, 25);
+        
+        char temp_mu[25];
+        strcpy(temp_mu, custom_mqtt_user.getValue());
+        
+        memcpy(mqtt_user, temp_mu, 25);
+        
+        saveConfig();
+        ESP.restart();
+    }
 
     Serial.println("Connected.");
   
     server.begin();
     
   } else {
+    Serial.println("Setup cofig found");
+    Serial.println("Connecting to HA");
     setup_wifi();
-    client.setServer(mqtt_server_ip, mqtt_server_port);
+    client.setServer(mqtt_server_ip, atoi(mqtt_server_port));
     client.setCallback(callback);
     client.setBufferSize(1024);
   
@@ -89,7 +220,7 @@ void setup() {
   
   //Setup OTA
   {
-    ArduinoOTA.setHostname(deviceName);
+    ArduinoOTA.setHostname(device_name);
 
     ArduinoOTA.onStart([]() {
       Serial.println("Start");
@@ -145,7 +276,7 @@ void handleRoot() {
               client.println(".button2 {background-color: #77878A;}</style></head>");
               
               // Web Page Heading
-              client.println("<body><h1>ESP8266 Web Server</h1>");
+              client.println("<body>");
 
               client.println("</body></html>");
               // The HTTP response ends with another blank line
@@ -174,7 +305,7 @@ void loop() {
   //OTA client code
   ArduinoOTA.handle();
 
-  if(initialSetupMode){
+  if(initialSetup){
     handleRoot();
   } else {
   
@@ -216,13 +347,7 @@ void loop() {
          
           if(motorDirection == STOP){
             stopPowerToCoils();
-            DynamicJsonDocument doc(50);
-            JsonObject currJson = doc.to<JsonObject>();
-            currJson["min"] = minPosition;
-            currJson["max"] = maxPosition;
-            currJson["current"] = currentPosition;
-            publishDebugJson(currJson);
-            if(helper.saveconfig(currJson)){
+            if(saveConfig()){
               //client.publish(maxConfigTopic, "", false);
             } 
           }
@@ -237,7 +362,7 @@ void loop() {
 }
 
 void publishDebugJson(JsonObject json){
-  char mqttJson[50];
+  char mqttJson[250];
   serializeJsonPretty(json, mqttJson);
   client.publish(coverDebugTopic.c_str(), mqttJson, false);
 }
@@ -258,11 +383,11 @@ void setup_wifi() {
   // We start by connecting to a WiFi network
   Serial.println();
   Serial.print("Connecting to ");
-  Serial.println(ssid);
+  Serial.println(&ssid);
 
   //Set WiFi mode so we don't create an access point.
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
+  WiFi.begin(&ssid, &password);
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -284,7 +409,7 @@ boolean connectClient() {
     digitalWrite(ledPin, HIGH);
     delay(100);
     digitalWrite(ledPin, LOW);
-    Serial.print("Attempting MQTT connection...");
+    Serial.println("Attempting MQTT connection...");
     // Check connection
     if (client.connect(mqttCoverDeviceClientId.c_str(), mqtt_user, mqtt_password, coverAvailabilityTopic.c_str(), 0, true, payloadNotAvailable)) {
       // Make an announcement when connected
@@ -355,6 +480,11 @@ void callback(char* topic, byte* message, unsigned int length) {
 
     if(messageStr == "ON"){
       helper.deletefile();
+      WiFiManager wifiManager;
+      wifiManager.disconnect();
+      delay(500);
+      wifiManager.erase();
+      delay(500);
       ESP.reset();
     } 
   }
@@ -365,14 +495,8 @@ void callback(char* topic, byte* message, unsigned int length) {
 
     if(messageStr == "ON"){
       minPosition = currentPosition;
-      DynamicJsonDocument minDoc(50);
-      JsonObject minJson = minDoc.to<JsonObject>();
-      minJson["min"] = minPosition;
-      minJson["max"] = maxPosition;
-      minJson["current"] = currentPosition;
       client.publish(coverDebugTopic.c_str(), "Min Position Set", false);
-      publishDebugJson(minJson);
-      if(helper.saveconfig(minJson)){
+      if(saveConfig()){
         client.publish(minConfigTopic.c_str(), "", false);
         client.publish(coverStateTopic.c_str(), opened, true);
       }
@@ -385,14 +509,8 @@ void callback(char* topic, byte* message, unsigned int length) {
 
     if(messageStr == "ON"){
       maxPosition = currentPosition;
-      DynamicJsonDocument maxDoc(50);
-      JsonObject maxJson = maxDoc.to<JsonObject>();
-      maxJson["min"] = minPosition;
-      maxJson["max"] = maxPosition;
-      maxJson["current"] = currentPosition;
       client.publish(coverDebugTopic.c_str(), "Max Position Set", false);
-      publishDebugJson(maxJson);
-      if(helper.saveconfig(maxJson)){
+      if(saveConfig()){
         client.publish(maxConfigTopic.c_str(), "", false);
         client.publish(coverStateTopic.c_str(), closed, true);
       }
@@ -413,7 +531,7 @@ void sendConfigDetailsToHA(){
     //for auto discovery
 
     DynamicJsonDocument mqttDevConfig(300);
-    mqttDevConfig["name"] = deviceName;
+    mqttDevConfig["name"] = device_name;
     mqttDevConfig["mf"] = manufacturer;
     mqttDevConfig["mdl"] = model;
     mqttDevConfig["sw"] = softwareVersion;
@@ -423,7 +541,7 @@ void sendConfigDetailsToHA(){
     mqttDevConfig["ids"][3] = mqttMaxDeviceClientId;
     
     DynamicJsonDocument mqttCoverConfig(650);
-    mqttCoverConfig["name"] = deviceName;
+    mqttCoverConfig["name"] = device_name;
     mqttCoverConfig["dev_cla"] = mqttCoverDeviceClass;
     mqttCoverConfig["stat_t"] = coverStateTopic;
     mqttCoverConfig["cmd_t"] = coverCommandTopic;
@@ -439,7 +557,7 @@ void sendConfigDetailsToHA(){
     client.publish(coverConfigTopic.c_str(), coverJson, true);
     
     DynamicJsonDocument mqttResetConfig(555);
-    mqttResetConfig["name"] = "Reset";
+    mqttResetConfig["name"] = "Erase & Reset";
     mqttResetConfig["ic"] = "mdi:lock-reset";
     mqttResetConfig["cmd_t"] = resetCommandTopic;
     mqttResetConfig["stat_t"] = resetStateTopic;
@@ -453,7 +571,7 @@ void sendConfigDetailsToHA(){
 
     if(minPosition == -1){
       DynamicJsonDocument mqttMinConfig(565);
-      mqttMinConfig["name"] = "Set Min";
+      mqttMinConfig["name"] = "Set Open";
       mqttMinConfig["ic"] = "mdi:blinds-open";
       mqttMinConfig["cmd_t"] = minCommandTopic;
       mqttMinConfig["stat_t"] = minStateTopic;
@@ -471,7 +589,7 @@ void sendConfigDetailsToHA(){
 
     if(maxPosition == -1){
       DynamicJsonDocument mqttMaxConfig(565);
-      mqttMaxConfig["name"] = "Set Max";
+      mqttMaxConfig["name"] = "Set Closed";
       mqttMaxConfig["ic"] = "mdi:blinds";
       mqttMaxConfig["cmd_t"] = maxCommandTopic;
       mqttMaxConfig["stat_t"] = maxStateTopic;
@@ -486,28 +604,4 @@ void sendConfigDetailsToHA(){
       client.publish(maxConfigTopic.c_str(), "", true);
     }
     configDetailsSent = true;
-}
-
-void printWiFiStatus() {
-
-  // print the SSID of the network you're attached to:
-
-  Serial.print("SSID: ");
-
-  Serial.println(WiFi.SSID());
-
-  // print your WiFi shield's IP address:
-
-  IPAddress ip = WiFi.localIP();
-
-  Serial.print("IP Address: ");
-
-  Serial.println(ip);
-
-  // print where to go in a browser:
-
-  Serial.print("To see this page in action, open a browser to http://");
-
-  Serial.println(ip);
-
 }
