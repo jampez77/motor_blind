@@ -5,12 +5,26 @@
 #include <ArduinoJson.h>
 #include "FS.h"
 
+
+struct Config {
+  long currentPosition;
+  long maxPosition;
+  long minPosition;
+  boolean initialSetup;
+  char deviceName[25];
+  char mqttUser[25];
+  char mqttPassword[25];
+  char mqttServerIp[25];
+  char mqttServerPort[25];
+};
+
+
 class ConfigHelper {
   public:
     ConfigHelper();
     boolean loadconfig();
-    JsonObject getconfig();
-    boolean saveconfig(JsonObject json);
+    Config getconfig();
+    boolean saveconfig(Config config);
     void deletefile();
     void printfile();
 
