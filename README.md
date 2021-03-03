@@ -70,8 +70,6 @@ After a bit of time compiling, the script should be uploaded to the device and b
 
 You can see what the device is doing by going to `Tools -> Serial Monitor`
 
-If the upload doesn't work the most likely cause is that you forgot to rename the `My_Helper_sample.h` file or import the above libraries.
-
 **Step 3 - Initial Configuration**
 
 Once the project has successfully booted up for the first time it will go into WiFi pairing mode by creating a wireless access point. Using a WiFi enabled device you should now see at network with a name like `Blinds-1828394`.
@@ -95,7 +93,7 @@ Providing everything went ok the Access Point will be deactivated and the device
 ***HA Pre-requisites***
 [MQTT discovery](https://www.home-assistant.io/docs/mqtt/discovery/) needs to be activated.
 
-One first connection you should see 4 entities `Set Open`, `Set Closed` `Erase & Reset` and the device name you entered e.g. `Study Blinds`.
+One first connection you should see 4 entities `Set Open`, `Set Closed`, `Erase & Reset` and the device name you entered e.g. `Study Blinds`.
 
 ![Home Assistant Configuration](files/ha_config.png)
 
