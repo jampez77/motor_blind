@@ -40,6 +40,10 @@ Connect the board to the NodeMCU as follows:
 
 **Step 2 - Flashing project to the NodeMcu**
 
+***The Quick Way***
+Each release now includes a `.bin` file which can be pushed right onto your device. You can do this by using a program like [Tasmotizer](https://www.superhouse.tv/37-installing-tasmota-using-tasmotizer/). Once you have successfully written the binary to the device you can move onto the next step.
+
+***The Long Way***
 Once you have setup your software, you first need to download this project, by clicking `clone -> Download ZIP`.
 
 Now open `motor_blind.ino`. Doing so should open it in the [Arduino IDE](https://www.arduino.cc/en/main/software).

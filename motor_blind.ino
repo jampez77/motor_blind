@@ -325,7 +325,7 @@ void loop() {
     
           if (motorDirection == OPEN) {
             if((minPosition != -1 && currentPosition == minPosition) ||
-                stepsBetweenMinMax == 0){
+                (minPosition != -1 && maxPosition != -1 && stepsBetweenMinMax == 0)){
               stopAndPublishState(motorDirection);
             } else {
               small_stepper.step(1);
@@ -333,8 +333,8 @@ void loop() {
             }
             
           } else if (motorDirection == CLOSE) {
-            if((maxPosition != -1 && currentPosition == maxPosition) ||
-                stepsBetweenMinMax == 0){
+          if((maxPosition != -1 && currentPosition == maxPosition) ||
+              (minPosition != -1 && maxPosition != -1 && stepsBetweenMinMax == 0)){
               stopAndPublishState(motorDirection);
             } else {
               small_stepper.step(-1);
