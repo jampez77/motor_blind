@@ -27,6 +27,16 @@ String resetStateTopic;
 String resetConfigTopic;
 String mqttResetDeviceClientId;
 
+String resetLimitsCommandTopic;
+String resetLimitsStateTopic;
+String resetLimitsConfigTopic;
+String mqttResetLimitsDeviceClientId;
+
+String wifiAPCommandTopic;
+String wifiAPStateTopic;
+String wifiAPConfigTopic;
+String mqttWifiAPDeviceClientId;
+
 String minCommandTopic;
 String minStateTopic;
 String minConfigTopic;
@@ -40,7 +50,7 @@ String mqttMaxDeviceClientId;
 const char* doorStatus = "";
 const char* prevDoorStatus = "";
 
-const char* softwareVersion = "2.0";
+const char* softwareVersion = "2.1";
 const char* manufacturer = "NandPez";
 const char* model = "Roller Blind Motor";
 boolean configDetailsSent = false;

@@ -71,6 +71,16 @@ void setup() {
   resetStateTopic = "homeassistant/switch/middleFloor/" + deviceId + "/state";
   resetConfigTopic = "homeassistant/switch/middleFloor/" + deviceId + "/config";
   mqttResetDeviceClientId = deviceId + "RstBlinds";
+
+  resetLimitsCommandTopic = "homeassistant/switch/middleFloor/" + deviceId + "Limits/set";
+  resetLimitsStateTopic = "homeassistant/switch/middleFloor/" + deviceId + "Limits/state";
+  resetLimitsConfigTopic = "homeassistant/switch/middleFloor/" + deviceId + "Limits/config";
+  mqttResetLimitsDeviceClientId = deviceId + "RstLimits";
+
+  wifiAPCommandTopic = "homeassistant/switch/middleFloor/" + deviceId + "WifiAP/set";
+  wifiAPStateTopic = "homeassistant/switch/middleFloor/" + deviceId + "WifiAP/state";
+  wifiAPConfigTopic = "homeassistant/switch/middleFloor/" + deviceId + "WifiAP/config";
+  mqttWifiAPDeviceClientId = deviceId + "WifiAP";
   
   minCommandTopic = "homeassistant/switch/middleFloor/" + deviceId + "Min/set";
   minStateTopic = "homeassistant/switch/middleFloor/" + deviceId + "Min/state";
@@ -208,7 +218,7 @@ void setup() {
     setup_wifi();
     client.setServer(mqtt_server_ip, atoi(mqtt_server_port));
     client.setCallback(callback);
-    client.setBufferSize(1024);
+    client.setBufferSize(2048);
   
     while(!configDetailsSent){
       if (connectClient()) {
@@ -328,8 +338,8 @@ void loop() {
                 (minPosition != -1 && maxPosition != -1 && stepsBetweenMinMax == 0)){
               stopAndPublishState(motorDirection);
             } else {
-              small_stepper.step(1);
-              currentPosition = currentPosition + 1;
+              small_stepper.step(-1);
+              currentPosition = currentPosition - 1;
             }
             
           } else if (motorDirection == CLOSE) {
@@ -337,8 +347,8 @@ void loop() {
               (minPosition != -1 && maxPosition != -1 && stepsBetweenMinMax == 0)){
               stopAndPublishState(motorDirection);
             } else {
-              small_stepper.step(-1);
-              currentPosition = currentPosition - 1;
+              small_stepper.step(1);
+              currentPosition = currentPosition + 1;
             }
           }
     
@@ -355,6 +365,7 @@ void loop() {
         }
         
       } else {
+        Serial.println("No MQTT Connection");
         connectClient();
       }
   }
@@ -421,6 +432,8 @@ boolean connectClient() {
       client.subscribe(resetCommandTopic.c_str());
       client.subscribe(minCommandTopic.c_str());
       client.subscribe(maxCommandTopic.c_str());
+      client.subscribe(resetLimitsCommandTopic.c_str());
+      client.subscribe(wifiAPCommandTopic.c_str());
 
       Serial.println("Subscribed to: ");
       Serial.println(coverCommandTopic);
@@ -428,6 +441,8 @@ boolean connectClient() {
       Serial.println(resetCommandTopic);
       Serial.println(minCommandTopic);
       Serial.println(maxCommandTopic);
+      Serial.println(resetLimitsCommandTopic);
+      Serial.println(wifiAPCommandTopic);
       return true;
     } else {
       Serial.print("failed, rc=");
@@ -453,6 +468,10 @@ void callback(char* topic, byte* message, unsigned int length) {
     Serial.print("Home Assistant Command: ");
     Serial.println(messageStr);
 
+    if((minPosition == -1 && maxPosition == -1) || initialSetup){
+      messageStr = payloadStop;
+    }
+
     if (messageStr == payloadStop) {
       stopPowerToCoils();
       motorDirection = STOP;
@@ -473,6 +492,35 @@ void callback(char* topic, byte* message, unsigned int length) {
     }
     client.publish(coverStateTopic.c_str(), endState, true);
   }
+
+  if (String(topic) == resetLimitsCommandTopic) {
+    Serial.print("Home Assistant Config Reset Blind Limits: ");
+    Serial.println(messageStr);
+
+    if(messageStr == "ON"){
+      minPosition = -1;
+      client.publish(minConfigTopic.c_str(), "", false);
+      maxPosition = -1;
+      client.publish(maxConfigTopic.c_str(), "", false);
+      saveConfig();
+
+      sendSetOpenDetailsToHA();
+      sendSetClosedDetailsToHA();
+    } 
+  }
+
+  if (String(topic) == wifiAPCommandTopic) {
+    Serial.print("Home Assistant Config Launch Wireless AP: ");
+    Serial.println(messageStr);
+
+    if(messageStr == "ON"){
+      initialSetup = true;
+      saveConfig();
+
+      ESP.reset();
+    } 
+  }
+
 
   if (String(topic) == resetCommandTopic) {
     Serial.print("Home Assistant Config Reset Blinds: ");
@@ -496,6 +544,8 @@ void callback(char* topic, byte* message, unsigned int length) {
     if(messageStr == "ON"){
       minPosition = currentPosition;
       client.publish(coverDebugTopic.c_str(), "Min Position Set", false);
+      sendResetLimitDetailsToHA();
+      sendWiFiAPDetailsToHA();
       if(saveConfig()){
         client.publish(minConfigTopic.c_str(), "", false);
         client.publish(coverStateTopic.c_str(), opened, true);
@@ -510,6 +560,8 @@ void callback(char* topic, byte* message, unsigned int length) {
     if(messageStr == "ON"){
       maxPosition = currentPosition;
       client.publish(coverDebugTopic.c_str(), "Max Position Set", false);
+      sendResetLimitDetailsToHA();
+      sendWiFiAPDetailsToHA();
       if(saveConfig()){
         client.publish(maxConfigTopic.c_str(), "", false);
         client.publish(coverStateTopic.c_str(), closed, true);
@@ -526,11 +578,8 @@ void stopPowerToCoils() {
   digitalWrite(D5, LOW);
 }
 
-void sendConfigDetailsToHA(){
-  //Send cover entity details to home assistant on initial connection
-    //for auto discovery
-
-    DynamicJsonDocument mqttDevConfig(300);
+DynamicJsonDocument mqttDevConfig(){
+    DynamicJsonDocument mqttDevConfig(350);
     mqttDevConfig["name"] = device_name;
     mqttDevConfig["mf"] = manufacturer;
     mqttDevConfig["mdl"] = model;
@@ -539,8 +588,16 @@ void sendConfigDetailsToHA(){
     mqttDevConfig["ids"][1] = mqttResetDeviceClientId;
     mqttDevConfig["ids"][2] = mqttMinDeviceClientId;
     mqttDevConfig["ids"][3] = mqttMaxDeviceClientId;
+    mqttDevConfig["ids"][4] = mqttResetLimitsDeviceClientId;
+    mqttDevConfig["ids"][5] = mqttWifiAPDeviceClientId;
+    return mqttDevConfig;
+}
+
+void sendConfigDetailsToHA(){
+  //Send cover entity details to home assistant on initial connection
+    //for auto discovery
     
-    DynamicJsonDocument mqttCoverConfig(650);
+    DynamicJsonDocument mqttCoverConfig(600);
     mqttCoverConfig["name"] = device_name;
     mqttCoverConfig["dev_cla"] = mqttCoverDeviceClass;
     mqttCoverConfig["stat_t"] = coverStateTopic;
@@ -550,58 +607,123 @@ void sendConfigDetailsToHA(){
     mqttCoverConfig["qos"] = 2;
     mqttCoverConfig["avty_t"] = coverAvailabilityTopic;
     mqttCoverConfig["uniq_id"] = mqttCoverDeviceClientId;
-    mqttCoverConfig["dev"] = mqttDevConfig;
-
-    char coverJson[650];
-    serializeJsonPretty(mqttCoverConfig, coverJson);
-    client.publish(coverConfigTopic.c_str(), coverJson, true);
+    mqttCoverConfig["dev"] = mqttDevConfig();
     
-    DynamicJsonDocument mqttResetConfig(555);
-    mqttResetConfig["name"] = "Erase & Reset";
+    char coverJson[600];
+    Serial.println("HERE 1");
+    size_t cover_n = serializeJson(mqttCoverConfig, coverJson);
+    Serial.println("HERE 2");
+    Serial.println(coverJson);
+    client.publish(coverConfigTopic.c_str(), coverJson, cover_n);
+    Serial.println("HERE 3");
+    
+    DynamicJsonDocument mqttResetConfig(600);
+    mqttResetConfig["name"] = "Full Reset";
     mqttResetConfig["ic"] = "mdi:lock-reset";
     mqttResetConfig["cmd_t"] = resetCommandTopic;
     mqttResetConfig["stat_t"] = resetStateTopic;
     mqttResetConfig["avty_t"] = coverAvailabilityTopic;
     mqttResetConfig["uniq_id"] = mqttResetDeviceClientId;
-    mqttResetConfig["dev"] = mqttDevConfig;
+    mqttResetConfig["dev"] = mqttDevConfig();
 
-    char resetJson[555];
-    serializeJsonPretty(mqttResetConfig, resetJson);
-    client.publish(resetConfigTopic.c_str(), resetJson, true);
+    char resetJson[600];
+    Serial.println("HERE 10");
+    size_t rst_n = serializeJson(mqttResetConfig, resetJson);
+    Serial.println("HERE 11");
+    Serial.println(resetJson);
+    client.publish(resetConfigTopic.c_str(), resetJson, rst_n);
+    Serial.println("HERE 12");
 
     if(minPosition == -1){
-      DynamicJsonDocument mqttMinConfig(565);
+      sendSetOpenDetailsToHA();
+    } else {
+      client.publish(minConfigTopic.c_str(), "", true);
+      sendResetLimitDetailsToHA();
+    }
+    
+
+    if(maxPosition == -1){
+      sendSetClosedDetailsToHA();
+    } else {
+      client.publish(maxConfigTopic.c_str(), "", true);
+      sendResetLimitDetailsToHA();
+    }
+    configDetailsSent = true;
+}
+
+void sendResetLimitDetailsToHA(){
+    DynamicJsonDocument mqttResetLimitsConfig(600);
+    mqttResetLimitsConfig["name"] = "Reset Limits";
+    mqttResetLimitsConfig["ic"] = "mdi:ray-start-end";
+    mqttResetLimitsConfig["cmd_t"] = resetLimitsCommandTopic;
+    mqttResetLimitsConfig["stat_t"] = resetLimitsStateTopic;
+    mqttResetLimitsConfig["avty_t"] = coverAvailabilityTopic;
+    mqttResetLimitsConfig["uniq_id"] = mqttResetLimitsDeviceClientId;
+    mqttResetLimitsConfig["dev"] = mqttDevConfig();
+
+    char resetLimitsJson[600];
+    Serial.println("HERE 7");
+    size_t limit_n = serializeJson(mqttResetLimitsConfig, resetLimitsJson);
+    Serial.println("HERE 8");
+    Serial.println(resetLimitsJson);
+
+    client.publish(resetLimitsConfigTopic.c_str(), resetLimitsJson, limit_n);    
+    Serial.println("HERE 9");
+}
+
+void sendWiFiAPDetailsToHA(){
+    DynamicJsonDocument mqttWiFiAPConfig(600);
+    mqttWiFiAPConfig["name"] = "WiFi AP";
+    mqttWiFiAPConfig["ic"] = "mdi:wifi";
+    mqttWiFiAPConfig["cmd_t"] = wifiAPCommandTopic;
+    mqttWiFiAPConfig["stat_t"] = wifiAPStateTopic;
+    mqttWiFiAPConfig["avty_t"] = coverAvailabilityTopic;
+    mqttWiFiAPConfig["uniq_id"] = mqttWifiAPDeviceClientId;
+    mqttWiFiAPConfig["dev"] = mqttDevConfig();
+
+    char wifiAPJson[600];
+    Serial.println("HERE 4");
+    size_t wifi_n = serializeJson(mqttWiFiAPConfig, wifiAPJson);
+    Serial.println("HERE 5");
+    Serial.println(wifiAPJson);
+    client.publish(wifiAPConfigTopic.c_str(), wifiAPJson, wifi_n);  
+    Serial.println("HERE 6");  
+}
+
+void sendSetOpenDetailsToHA(){
+      DynamicJsonDocument mqttMinConfig(600);
       mqttMinConfig["name"] = "Set Open";
       mqttMinConfig["ic"] = "mdi:blinds-open";
       mqttMinConfig["cmd_t"] = minCommandTopic;
       mqttMinConfig["stat_t"] = minStateTopic;
       mqttMinConfig["avty_t"] = coverAvailabilityTopic;
       mqttMinConfig["uniq_id"] = mqttMinDeviceClientId;
-      mqttMinConfig["dev"] = mqttDevConfig;
+      mqttMinConfig["dev"] = mqttDevConfig();
   
-      char minJson[565];
-      serializeJsonPretty(mqttMinConfig, minJson);
-      client.publish(minConfigTopic.c_str(), minJson, true);
-    } else {
-      client.publish(minConfigTopic.c_str(), "", true);
-    }
-    
+      char minJson[600];
+      Serial.println("HERE 13");
+      size_t n = serializeJson(mqttMinConfig, minJson);
+      Serial.println("HERE 14");
+      Serial.println(minJson);
+      client.publish(minConfigTopic.c_str(), minJson, n);
+      Serial.println("HERE 15");
+}
 
-    if(maxPosition == -1){
-      DynamicJsonDocument mqttMaxConfig(565);
+void sendSetClosedDetailsToHA(){
+      DynamicJsonDocument mqttMaxConfig(600);
       mqttMaxConfig["name"] = "Set Closed";
       mqttMaxConfig["ic"] = "mdi:blinds";
       mqttMaxConfig["cmd_t"] = maxCommandTopic;
       mqttMaxConfig["stat_t"] = maxStateTopic;
       mqttMaxConfig["avty_t"] = coverAvailabilityTopic;
       mqttMaxConfig["uniq_id"] = mqttMaxDeviceClientId;
-      mqttMaxConfig["dev"] = mqttDevConfig;
+      mqttMaxConfig["dev"] = mqttDevConfig();
   
-      char maxJson[565];
-      serializeJsonPretty(mqttMaxConfig, maxJson);
-      client.publish(maxConfigTopic.c_str(), maxJson, true);
-    } else {
-      client.publish(maxConfigTopic.c_str(), "", true);
-    }
-    configDetailsSent = true;
+      char maxJson[600];
+      Serial.println("HERE 16");
+      size_t n = serializeJson(mqttMaxConfig, maxJson);
+      Serial.println("HERE 17");
+      Serial.println(maxJson);
+      client.publish(maxConfigTopic.c_str(), maxJson, n);
+      Serial.println("HERE 18"); 
 }
