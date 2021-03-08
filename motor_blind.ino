@@ -158,11 +158,9 @@ void setup() {
     WiFiManagerParameter custom_mqtt_password("mqtt_pw", "MQTT Password", mqtt_password, 40, " required type='password'");
     //Setup WIFI Manager
 
-
     WiFiManager wifiManager;
     wifiManager.setClass("invert"); 
     wifiManager.setSaveConfigCallback(saveConfigCallback);
-
 
     wifiManager.addParameter(&custom_device_name);    
     wifiManager.addParameter(&custom_text);
@@ -188,14 +186,12 @@ void setup() {
         memcpy(mqtt_server_port, temp_mp, 25);
 
         char temp_ms[25];
-        strcpy(temp_ms, custom_mqtt_server.getValue());
-        
+        strcpy(temp_ms, custom_mqtt_server.getValue());       
 
         memcpy(mqtt_server_ip, temp_ms, 25);
 
         char temp_mpw[25];
-        strcpy(temp_mpw, custom_mqtt_password.getValue());
-        
+        strcpy(temp_mpw, custom_mqtt_password.getValue());        
  
         memcpy(mqtt_password, temp_mpw, 25);
         
@@ -329,13 +325,17 @@ void loop() {
       if (client.connected()) {
         client.loop();
         digitalWrite(ledPin, HIGH);
+
+    
         //only activate motor if we 
         if(motorDirection == OPEN || motorDirection == CLOSE){
           int stepsBetweenMinMax = maxPosition - minPosition;
     
           if (motorDirection == OPEN) {
-            if((minPosition != -1 && currentPosition == minPosition) ||
-                (minPosition != -1 && maxPosition != -1 && stepsBetweenMinMax == 0)){
+            if(
+                (minPosition != -1 && currentPosition == minPosition) ||
+                (minPosition != -1 && maxPosition != -1 && stepsBetweenMinMax == 0) 
+            ){
               stopAndPublishState(motorDirection);
             } else {
               small_stepper.step(-1);
@@ -343,8 +343,10 @@ void loop() {
             }
             
           } else if (motorDirection == CLOSE) {
-          if((maxPosition != -1 && currentPosition == maxPosition) ||
-              (minPosition != -1 && maxPosition != -1 && stepsBetweenMinMax == 0)){
+          if(
+              (maxPosition != -1 && currentPosition == maxPosition) ||
+              (minPosition != -1 && maxPosition != -1 && stepsBetweenMinMax == 0) 
+            ){
               stopAndPublishState(motorDirection);
             } else {
               small_stepper.step(1);
@@ -568,6 +570,7 @@ void callback(char* topic, byte* message, unsigned int length) {
       }
     }
   }
+  
 }
 
 void stopPowerToCoils() {
@@ -610,12 +613,9 @@ void sendConfigDetailsToHA(){
     mqttCoverConfig["dev"] = mqttDevConfig();
     
     char coverJson[600];
-    Serial.println("HERE 1");
     size_t cover_n = serializeJson(mqttCoverConfig, coverJson);
-    Serial.println("HERE 2");
     Serial.println(coverJson);
     client.publish(coverConfigTopic.c_str(), coverJson, cover_n);
-    Serial.println("HERE 3");
     
     DynamicJsonDocument mqttResetConfig(600);
     mqttResetConfig["name"] = "Full Reset";
@@ -627,12 +627,9 @@ void sendConfigDetailsToHA(){
     mqttResetConfig["dev"] = mqttDevConfig();
 
     char resetJson[600];
-    Serial.println("HERE 10");
     size_t rst_n = serializeJson(mqttResetConfig, resetJson);
-    Serial.println("HERE 11");
     Serial.println(resetJson);
     client.publish(resetConfigTopic.c_str(), resetJson, rst_n);
-    Serial.println("HERE 12");
 
     if(minPosition == -1){
       sendSetOpenDetailsToHA();
@@ -662,13 +659,9 @@ void sendResetLimitDetailsToHA(){
     mqttResetLimitsConfig["dev"] = mqttDevConfig();
 
     char resetLimitsJson[600];
-    Serial.println("HERE 7");
     size_t limit_n = serializeJson(mqttResetLimitsConfig, resetLimitsJson);
-    Serial.println("HERE 8");
     Serial.println(resetLimitsJson);
-
     client.publish(resetLimitsConfigTopic.c_str(), resetLimitsJson, limit_n);    
-    Serial.println("HERE 9");
 }
 
 void sendWiFiAPDetailsToHA(){
@@ -682,12 +675,9 @@ void sendWiFiAPDetailsToHA(){
     mqttWiFiAPConfig["dev"] = mqttDevConfig();
 
     char wifiAPJson[600];
-    Serial.println("HERE 4");
     size_t wifi_n = serializeJson(mqttWiFiAPConfig, wifiAPJson);
-    Serial.println("HERE 5");
     Serial.println(wifiAPJson);
-    client.publish(wifiAPConfigTopic.c_str(), wifiAPJson, wifi_n);  
-    Serial.println("HERE 6");  
+    client.publish(wifiAPConfigTopic.c_str(), wifiAPJson, wifi_n);   
 }
 
 void sendSetOpenDetailsToHA(){
@@ -701,12 +691,9 @@ void sendSetOpenDetailsToHA(){
       mqttMinConfig["dev"] = mqttDevConfig();
   
       char minJson[600];
-      Serial.println("HERE 13");
       size_t n = serializeJson(mqttMinConfig, minJson);
-      Serial.println("HERE 14");
       Serial.println(minJson);
       client.publish(minConfigTopic.c_str(), minJson, n);
-      Serial.println("HERE 15");
 }
 
 void sendSetClosedDetailsToHA(){
@@ -720,10 +707,7 @@ void sendSetClosedDetailsToHA(){
       mqttMaxConfig["dev"] = mqttDevConfig();
   
       char maxJson[600];
-      Serial.println("HERE 16");
       size_t n = serializeJson(mqttMaxConfig, maxJson);
-      Serial.println("HERE 17");
       Serial.println(maxJson);
       client.publish(maxConfigTopic.c_str(), maxJson, n);
-      Serial.println("HERE 18"); 
 }
