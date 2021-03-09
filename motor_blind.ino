@@ -153,7 +153,7 @@ void setup() {
     WiFiManagerParameter custom_device_name("d_name", "Device Name", device_name, 25, " required onkeyup='this.value = this.value.replace(/(^\\w{1})|(\\s+\\w{1})/g, letter => letter.toUpperCase());'");
     WiFiManagerParameter custom_text("<p><b>MQTT server parameters:</b></p>");
     WiFiManagerParameter custom_mqtt_server("mqtt_ip", "MQTT Server IP", mqtt_server_ip, 15, " required");
-    WiFiManagerParameter custom_mqtt_port("mqtt_p", "MQTT Port", mqtt_server_port, 6, " required");
+    WiFiManagerParameter custom_mqtt_port("mqtt_p", "MQTT Port", mqtt_server_port, 6, " required type='number'");
     WiFiManagerParameter custom_mqtt_user("mqtt_u", "MQTT Username", mqtt_user, 40, " required");
     WiFiManagerParameter custom_mqtt_password("mqtt_pw", "MQTT Password", mqtt_password, 40, " required type='password'");
     //Setup WIFI Manager
@@ -605,7 +605,7 @@ void sendConfigDetailsToHA(){
     mqttCoverConfig["dev_cla"] = mqttCoverDeviceClass;
     mqttCoverConfig["stat_t"] = coverStateTopic;
     mqttCoverConfig["cmd_t"] = coverCommandTopic;
-    mqttCoverConfig["opt"] = false;
+    mqttCoverConfig["opt"] = true;
     mqttCoverConfig["ret"] = true;
     mqttCoverConfig["qos"] = 2;
     mqttCoverConfig["avty_t"] = coverAvailabilityTopic;

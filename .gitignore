@@ -1,2 +1,3 @@
-.bin
-.fzz
+*.fzz
+*.DS_Store
+*.bin
