@@ -7,6 +7,11 @@ This project was inspired by the excellent work of [nidayand](https://github.com
 The initial parts for the project were printed from [Motor on a roller blind](https://www.thingiverse.com/thing:2392856) by [ pgote](https://www.thingiverse.com/pgote/designs). I then created a "better" enclosure to house the components [here](https://www.thingiverse.com/thing:4788792).
 
 
+Enjoying this? Help me out with a :beers: or :coffee:!
+
+[![coffee](https://www.buymeacoffee.com/assets/img/custom_images/black_img.png)](https://www.buymeacoffee.com/jampez77)
+
+
 ## Contents ##
 
 * [Prerequisites](https://github.com/jampez77/motor_blind#prerequisites)
